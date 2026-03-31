@@ -13,7 +13,7 @@ from deep_translator import GoogleTranslator
 
 # --- НАСТРОЙКИ ---
 # Вставь сюда НОВЫЙ токен от @BotFather (старый уже не работает)
-API_TOKEN = "ТВОЙ_НОВЫЙ_ТОКЕН" 
+API_TOKEN ="8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w" 
 CHANNEL_ID = -1003728797088 
 ADMIN_USERNAME = "@твой_ник" # Твой ник в ТГ
 
