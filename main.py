@@ -6,13 +6,13 @@ from aiohttp import web
 # --- ТВОИ ДАННЫЕ ---
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
 MY_PROFILE_URL = "https://t.me/Nygmad"
-# ЗАМЕНИ НА СВОЙ КАНАЛ (с @)
+# ЗАМЕНИ НА СВОЙ КАНАЛ (например, @my_channel_name)
 CHANNEL_ID = "@твой_канал" 
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# Кнопки, которые будут ПОД постом
+# Создаем кнопки, которые будут ПОД постом
 def get_buttons():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛍️ Купить / Buy / Kupić", url=MY_PROFILE_URL)],
@@ -22,7 +22,7 @@ def get_buttons():
         ]
     ])
 
-# Бот ловит любое твое сообщение (текст или фото с текстом) и шлет в канал с кнопками
+# Бот берет любой твой текст из лички и кидает в канал с кнопками
 @dp.message(F.chat.type == "private")
 async def forward_to_channel(message: types.Message):
     try:
@@ -31,14 +31,14 @@ async def forward_to_channel(message: types.Message):
         elif message.photo:
             await bot.send_photo(chat_id=CHANNEL_ID, photo=message.photo[-1].file_id, caption=message.caption, reply_markup=get_buttons())
         
-        await message.answer("✅ Пост опубликован в канале с кнопками!")
+        await message.answer("✅ Опубликовано в канале с кнопками!")
     except Exception as e:
         await message.answer(f"❌ Ошибка: проверь, что бот админ в {CHANNEL_ID}\n{e}")
 
-# Обработка кнопок языков
+# Реакция на кнопки языков
 @dp.callback_query(F.data.startswith("lang_"))
 async def change_lang(call: types.CallbackQuery):
-    text = "Hello! Contact owner to buy." if call.data == "lang_en" else "Cześć! Skontaktuj się z właścicielem."
+    text = "Contact owner to buy." if call.data == "lang_en" else "Skontaktuj się с właścicielem."
     await call.message.answer(text)
     await call.answer()
 
