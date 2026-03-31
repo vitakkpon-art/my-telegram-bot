@@ -7,7 +7,7 @@ from aiohttp import web
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
 MY_PROFILE_URL = "https://t.me/Nygmad"
 # ЗАМЕНИ НА СВОЙ КАНАЛ (например, @my_channel_name)
-CHANNEL_ID = "@твой_канал" 
+CHANNEL_ID = "@pomocPolska" 
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
