@@ -1,51 +1,57 @@
 import asyncio
-import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiohttp import web
 
-# --- НАСТРОЙКИ ---
+# --- ТВОИ ДАННЫЕ ---
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
-ADMIN_URL = "https://t.me/Nygmad"
-
-# ВПИШИ СВОЙ КАНАЛ ЗДЕСЬ (с собачкой @)
-CHANNEL_ID = "@твой_канал" 
+MY_PROFILE_URL = "https://t.me/Nygmad"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-def main_menu():
+# Создаем меню (Купить + Языки)
+def simple_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 Купить", url=ADMIN_URL)],
+        [InlineKeyboardButton(text="🛍️ Купить / Buy / Kupić", url=MY_PROFILE_URL)],
         [
-            InlineKeyboardButton(text="🇺🇸 USD", callback_data="rate_usd"),
-            InlineKeyboardButton(text="🇪🇺 EUR", callback_data="rate_eur")
+            InlineKeyboardButton(text="🇬🇧 English", callback_data="lang_en"),
+            InlineKeyboardButton(text="🇵🇱 Polski", callback_data="lang_pl")
         ]
     ])
 
-# Команда только для тебя, чтобы выкинуть меню в канал
-@dp.message(F.text == "/send_to_channel")
-async def send_now(message: types.Message):
-    try:
-        await bot.send_message(chat_id=CHANNEL_ID, text="📊 **Актуальные курсы и покупка:**", reply_markup=main_menu(), parse_mode="Markdown")
-        await message.answer("✅ Отправлено в канал!")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: проверь, что бот админ в канале!\n{e}")
+# Команда для получения заготовки поста
+@dp.message(F.text == "/start")
+async def cmd_start(message: types.Message):
+    await message.answer(
+        "Вот твой пост для канала. **Перешли** его в свой канал:",
+        reply_markup=simple_menu()
+    )
 
-# Обработка кнопок в канале
-@dp.callback_query(F.data.startswith("rate_"))
-async def get_rate_call(call: types.CallbackQuery):
-    currency = call.data.split("_")[1].upper()
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.exchangerate-api.com/v4/latest/{currency}") as resp:
-            data = await resp.json()
-            rate = data['rates']['RUB']
+# Что пишет бот при нажатии на кнопки языков
+@dp.callback_query(F.data.startswith("lang_"))
+async def change_lang(call: types.CallbackQuery):
+    if call.data == "lang_en":
+        text = "Hello! Click the button above to contact the owner and make a purchase."
+    else:
+        text = "Cześć! Kliknij przycisk powyżej, aby skontaktować się z właścicielem i dokonać zakupu."
     
-    # Бот отвечает пользователю НОВЫМ сообщением (так работает в каналах)
-    await call.message.answer(f"💵 Курс {currency}: **{rate} RUB**", parse_mode="Markdown")
+    await call.message.answer(text)
     await call.answer()
 
+# --- ЗАГЛУШКА ДЛЯ RENDER (чтобы бот не отключался) ---
+async def handle(request):
+    return web.Response(text="Bot is Live")
+
 async def main():
-    await dp.start_polling(bot)
+    app = web.Application()
+    app.router.add_get("/", handle)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    
+    print("Бот успешно запущен!")
+    await asyncio.gather(site.start(), dp.start_polling(bot))
 
 if __name__ == "__main__":
     asyncio.run(main())
