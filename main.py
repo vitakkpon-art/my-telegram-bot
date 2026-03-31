@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
-from googletrans import Translator # Подключаем переводчик
+from deep_translator import GoogleTranslator # Новый надежный переводчик
 
 # --- ТВОИ ДАННЫЕ ---
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
@@ -11,7 +11,6 @@ CHANNEL_ID = "@pomocPolska"
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
-translator = Translator()
 
 def get_buttons():
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -35,25 +34,19 @@ async def forward_to_channel(message: types.Message):
 
 @dp.callback_query(F.data.startswith("lang_"))
 async def show_translation(call: types.CallbackQuery):
-    # Берем текст из поста
     original_text = call.message.text or call.message.caption or ""
-    
     if not original_text:
         await call.answer("Текст не найден", show_alert=True)
         return
 
-    # Определяем язык перевода
     target_lang = 'en' if call.data == "lang_en" else 'pl'
     
     try:
-        # САМ ПЕРЕВОД
-        result = translator.translate(original_text, dest=target_lang)
-        translated_text = result.text
-        
-        # Показываем результат в окне
-        await call.answer(text=f"Перевод:\n\n{translated_text}", show_alert=True)
-    except Exception:
-        await call.answer("Ошибка перевода, попробуйте позже", show_alert=True)
+        # Новый способ перевода
+        translated = GoogleTranslator(source='auto', target=target_lang).translate(original_text)
+        await call.answer(text=f"Перевод:\n\n{translated}", show_alert=True)
+    except Exception as e:
+        await call.answer(f"Ошибка перевода: {e}", show_alert=True)
 
 async def handle(request): return web.Response(text="Live")
 async def main():
