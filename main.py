@@ -1,4 +1,5 @@
 import asyncio
+import urllib.parse
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiohttp import web
@@ -8,75 +9,113 @@ from deep_translator import GoogleTranslator
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
 MY_PROFILE_URL = "https://t.me/Nygmad"
 CHANNEL_ID = "@pomocPolska" 
+MY_ID = 541171874 # Твой ID для админ-кнопок
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# Главные кнопки
-def get_main_buttons():
+# Умная ссылка для заказа
+def get_order_url():
+    text = "Здравствуйте! Хочу заказать этот товар из канала @pomocPolska 🛍️"
+    return f"{MY_PROFILE_URL}?text={urllib.parse.quote(text)}"
+
+# ГЛАВНЫЕ КНОПКИ (Обычные)
+def get_main_kb(is_sold=False):
+    if is_sold:
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ ПРОДАНО / SOLD", callback_data="none")],
+            [InlineKeyboardButton(text="ℹ️ Info", callback_data="info_choose")]
+        ])
+    
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛍️ Заказать / Order / Zamów", url=MY_PROFILE_URL)],
+        [InlineKeyboardButton(text="🛍️ ЗАКАЗАТЬ / ORDER", url=get_order_url())],
         [
             InlineKeyboardButton(text="🇬🇧 English", callback_data="translate_en"),
             InlineKeyboardButton(text="🇵🇱 Polski", callback_data="translate_pl")
         ],
-        [InlineKeyboardButton(text="ℹ️ Info", callback_data="info_ru")] # По умолчанию RU
+        [InlineKeyboardButton(text="ℹ️ Info", callback_data="info_choose")]
     ])
 
+# АДМИН-КНОПКА (Добавляется только в твоем превью)
+def get_admin_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ Опубликовать со статусом 'В наличии'", callback_data="admin_publish")]
+    ])
+
+# КНОПКА СМЕНЫ СТАТУСА (Видна в канале всем, но работает только для тебя)
+def get_status_kb():
+    kb = get_main_kb()
+    kb.inline_keyboard.append([InlineKeyboardButton(text="✅ В наличии (Админ)", callback_data="admin_mark_sold")])
+    return kb
+
+# --- ОБРАБОТЧИКИ ---
+
 @dp.message(F.chat.type == "private")
-async def forward_to_channel(message: types.Message):
-    try:
-        if message.text:
-            await bot.send_message(chat_id=CHANNEL_ID, text=message.text, reply_markup=get_main_buttons(), parse_mode="HTML")
-        elif message.photo:
-            await bot.send_photo(chat_id=CHANNEL_ID, photo=message.photo[-1].file_id, caption=message.caption, reply_markup=get_main_buttons(), parse_mode="HTML")
-        await message.answer("✅ Готово! Кнопка Info теперь переводит.")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+async def start_post(message: types.Message):
+    # Добавляем оформление "Скидка дня", если есть ключевое слово
+    text = message.text or message.caption or ""
+    if any(word in text.lower() for word in ["скидка", "sale", "promocja"]):
+        prefix = "🔥 ВНИМАНИЕ: СКИДКА ДНЯ! / SALE! 🔥\n\n"
+        if message.text: message.text = prefix + message.text
+        else: message.caption = prefix + message.caption
 
-# Перевод текста поста
+    await message.copy_to(chat_id=message.chat.id, reply_markup=get_admin_kb())
+
+@dp.callback_query(F.data == "admin_publish")
+async def publish_post(call: types.CallbackQuery):
+    await call.message.copy_to(chat_id=CHANNEL_ID, reply_markup=get_status_kb())
+    await call.answer("🚀 Опубликовано в канал!", show_alert=True)
+    await call.message.delete()
+
+@dp.callback_query(F.data == "admin_mark_sold")
+async def mark_as_sold(call: types.CallbackQuery):
+    if call.from_user.id != MY_ID:
+        await call.answer("🔒 Это кнопка только для админа", show_alert=True)
+        return
+    
+    await call.message.edit_reply_markup(reply_markup=get_main_kb(is_sold=True))
+    await call.answer("✅ Статус изменен на 'ПРОДАНО'", show_alert=True)
+
+# --- ПЕРЕВОД И INFO (Оставляем твою лучшую версию) ---
+
+@dp.callback_query(F.data == "info_choose")
+async def info_choose_lang(call: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🇷🇺 RU", callback_data="it_ru"),
+         InlineKeyboardButton(text="🇵🇱 PL", callback_data="it_pl"),
+         InlineKeyboardButton(text="🇬🇧 EN", callback_data="it_en")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+    ])
+    await call.message.edit_reply_markup(reply_markup=kb)
+
+@dp.callback_query(F.data == "back")
+async def back(call: types.CallbackQuery):
+    await call.message.edit_reply_markup(reply_markup=get_status_kb())
+
+@dp.callback_query(F.data.startswith("it_"))
+async def show_info(call: types.CallbackQuery):
+    lang = call.data.split('_')[1]
+    texts = {
+        'ru': "ℹ️ ИНФОРМАЦИЯ\n📦 Отправка InPost — 24ч\n🤝 Встреча в Tczew — 24ч",
+        'pl': "ℹ️ INFORMACJA\n📦 Wysyłka InPost — 24h\n🤝 Spotkanie w Tczewie — 24h",
+        'en': "ℹ️ INFO\n📦 InPost shipping — 24h\n🤝 Meeting in Tczew — 24h"
+    }
+    await call.answer(text=texts.get(lang), show_alert=True)
+
 @dp.callback_query(F.data.startswith("translate_"))
-async def handle_translation(call: types.CallbackQuery):
+async def translate_post(call: types.CallbackQuery):
     lang = call.data.split('_')[1]
-    original_text = call.message.text or call.message.caption or ""
-    
+    original = call.message.text or call.message.caption or ""
     try:
-        translated = GoogleTranslator(source='auto', target=lang).translate(original_text)
-        header = "🇬🇧 ENGLISH" if lang == 'en' else "🇵🇱 POLSKI"
-        
-        # Обновляем кнопки под постом, чтобы Info вела на нужный язык
-        new_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🛍️ Order / Zamów", url=MY_PROFILE_URL)],
-            [
-                InlineKeyboardButton(text="🇬🇧 English", callback_data="translate_en"),
-                InlineKeyboardButton(text="🇵🇱 Polski", callback_data="translate_pl")
-            ],
-            [InlineKeyboardButton(text="ℹ️ Info", callback_data=f"info_{lang}")]
-        ])
-
-        full_text = f"📍 {header}\n──────────────\n\n{translated}\n\n───── ⚡️ ─────\n👨‍💻 Contact: @Nygmad"
-        await call.answer(text=full_text, show_alert=True)
+        tr = GoogleTranslator(source='auto', target=lang).translate(original)
+        await call.answer(text=f"📍 TRANSLATION:\n\n{tr}", show_alert=True)
     except:
-        await call.answer("Error", show_alert=True)
+        await call.answer("Error")
 
-# Обработка Info на разных языках
-@dp.callback_query(F.data.startswith("info_"))
-async def handle_info(call: types.CallbackQuery):
-    lang = call.data.split('_')[1]
-    
-    if lang == 'pl':
-        text = "ℹ️ INFORMACJA\n──────────────\n📦 Wysyłka InPost - do 24h\n🤝 Spotkanie w Tczewie - do 24h"
-    elif lang == 'en':
-        text = "ℹ️ INFORMATION\n──────────────\n📦 InPost shipping - up to 24h\n🤝 Meeting in Tczew - up to 24h"
-    else:
-        text = "ℹ️ ИНФОРМАЦИЯ\n──────────────\n📦 Отправка InPost - до 24ч\n🤝 Встреча в Tczew - до 24ч"
-        
-    await call.answer(text=text, show_alert=True)
-
-async def handle(request): return web.Response(text="Live")
+# --- SERVER ---
+async def handle(r): return web.Response(text="Live")
 async def main():
-    app = web.Application()
-    app.router.add_get("/", handle)
+    app = web.Application(); app.router.add_get("/", handle)
     runner = web.AppRunner(app); await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", 10000).start()
     await dp.start_polling(bot)
