@@ -6,13 +6,12 @@ from aiohttp import web
 # --- ТВОИ ДАННЫЕ ---
 API_TOKEN = "8371761898:AAEBg0nPe1gxS7X8wOJCNjroWIcpaHHqd3w"
 MY_PROFILE_URL = "https://t.me/Nygmad"
-# ЗАМЕНИ НА СВОЙ КАНАЛ (например, @my_channel_name)
 CHANNEL_ID = "@pomocPolska" 
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# Создаем кнопки, которые будут ПОД постом
+# Кнопки под постом
 def get_buttons():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛍️ Купить / Buy / Kupić", url=MY_PROFILE_URL)],
@@ -22,7 +21,7 @@ def get_buttons():
         ]
     ])
 
-# Бот берет любой твой текст из лички и кидает в канал с кнопками
+# Отправка поста в канал (пишешь боту в личку — он шлет в канал)
 @dp.message(F.chat.type == "private")
 async def forward_to_channel(message: types.Message):
     try:
@@ -30,17 +29,25 @@ async def forward_to_channel(message: types.Message):
             await bot.send_message(chat_id=CHANNEL_ID, text=message.text, reply_markup=get_buttons())
         elif message.photo:
             await bot.send_photo(chat_id=CHANNEL_ID, photo=message.photo[-1].file_id, caption=message.caption, reply_markup=get_buttons())
-        
-        await message.answer("✅ Опубликовано в канале с кнопками!")
+        await message.answer("✅ Пост опубликован!")
     except Exception as e:
-        await message.answer(f"❌ Ошибка: проверь, что бот админ в {CHANNEL_ID}\n{e}")
+        await message.answer(f"❌ Ошибка: проверь админку в канале.\n{e}")
 
-# Реакция на кнопки языков
+# ОБРАБОТКА НАЖАТИЙ (Всплывающее окно)
 @dp.callback_query(F.data.startswith("lang_"))
-async def change_lang(call: types.CallbackQuery):
-    text = "Contact owner to buy." if call.data == "lang_en" else "Skontaktuj się с właścicielem."
-    await call.message.answer(text)
-    await call.answer()
+async def show_translation(call: types.CallbackQuery):
+    # Здесь мы берем текст самого поста, под которым нажата кнопка
+    original_text = call.message.text or call.message.caption or ""
+    
+    # Логика перевода (можешь вписать свой перевод или оставить общую фразу)
+    if call.data == "lang_en":
+        translation = f"🇬🇧 English Version:\n\n{original_text}\n\n(Contact @Nygmad to buy)"
+    else:
+        translation = f"🇵🇱 Polska Wersja:\n\n{original_text}\n\n(Kontakt @Nygmad w celu zakupu)"
+
+    # show_alert=True создает модальное окно с кнопкой "ОК"
+    # Это сообщение видит ТОЛЬКО нажавший, в канале ничего не дублируется
+    await call.answer(text=translation, show_alert=True)
 
 # Заглушка для Render
 async def handle(request): return web.Response(text="Live")
